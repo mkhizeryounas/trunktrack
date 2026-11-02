@@ -51,7 +51,8 @@ same trunks received).
 | Branches | Per-branch totals and filters (owing money, shifting pending, unused trunks, no region). Each branch has a history page and timeline. Renaming a code updates every delivery. |
 | Reports | By region, by zone, outstanding by age (0–30 / 31–60 / 61–90 / 90+ days), month by month. Each table has CSV export, and the page prints cleanly. |
 | Data checks | Missing dates, branches without a region, more trunks used than received, used but "not started", paid without a date, duplicate invoice numbers, payments over 60 days, and more. |
-| Regions | Add, rename (all branches follow), merge into another region, or delete. Shows each region's zones, branches and totals. Zones can be renamed or cleared there too. |
+| Regions | Add, rename (all branches follow), add notes, merge into another region, or delete. Shows each region's zones, branches and totals. |
+| Zones | The same for zones: totals per zone, which regions it covers, add, rename, merge, delete. A branch's zone is set on the branch, because regions span several zones. |
 
 ## Rules the app applies
 

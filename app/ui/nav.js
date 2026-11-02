@@ -11,6 +11,7 @@ const LINKS = [
   { href: '/deliveries', label: 'Deliveries', icon: 'truck' },
   { href: '/branches', label: 'Branches', icon: 'building' },
   { href: '/regions', label: 'Regions', icon: 'map' },
+  { href: '/zones', label: 'Zones', icon: 'layers' },
   { href: '/reports', label: 'Reports', icon: 'chart' },
   { href: '/issues', label: 'Data checks', icon: 'alert' },
 ]

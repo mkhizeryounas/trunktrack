@@ -89,6 +89,7 @@ export async function saveDelivery(input) {
   const exists = check(await db().from('trunk_branches').select('code').eq('code', branch_code).maybeSingle(), 'Checking branch')
   if (!exists) {
     await ensureRegion(text(input.new_branch_region))
+    await ensureZone(text(input.new_branch_zone))
     check(await db().from('trunk_branches').insert({
       code: branch_code, name: /^\d+$/.test(branch_code) ? null : branch_code,
       region: text(input.new_branch_region), zone: text(input.new_branch_zone),
@@ -135,6 +136,7 @@ export async function saveBranch(input) {
   if (!code) return { ok: false, errors: { code: 'Branch code is required.' } }
   const row = { code, name: text(input.name), region: text(input.region), zone: text(input.zone), notes: text(input.notes) }
   await ensureRegion(row.region)
+  await ensureZone(row.zone)
   if (input.originalCode && input.originalCode !== code) {
     const taken = check(await db().from('trunk_branches').select('code').eq('code', code).maybeSingle(), 'Checking code')
     if (taken) return { ok: false, errors: { code: `Branch ${code} already exists.` } }
@@ -160,53 +162,61 @@ export async function deleteBranch(code) {
   return { ok: true }
 }
 
-// ---------- regions & zones ----------
-async function ensureRegion(name) {
-  if (name) check(await db().from('trunk_regions').upsert({ name }, { onConflict: 'name', ignoreDuplicates: true }), 'Adding region')
-}
+// ---------- regions & zones (managed lists; branches follow renames via the foreign key) ----------
+const GROUPS = { region: { table: 'trunk_regions', noun: 'Region' }, zone: { table: 'trunk_zones', noun: 'Zone' } }
 
-export async function saveRegion(input) {
+async function ensureGroup(kind, name) {
+  if (name) check(await db().from(GROUPS[kind].table).upsert({ name }, { onConflict: 'name', ignoreDuplicates: true }), `Adding ${kind}`)
+}
+const ensureRegion = (name) => ensureGroup('region', name)
+const ensureZone = (name) => ensureGroup('zone', name)
+
+/** Adds a region/zone, or renames it (every branch follows) and updates its notes. */
+export async function saveGroup(kind, input) {
   await requireUser()
+  const g = GROUPS[kind]
+  if (!g) return { ok: false, error: 'Unknown list.' }
   const name = text(input.name)
-  if (!name) return { ok: false, errors: { name: 'Region name is required.' } }
+  if (!name) return { ok: false, errors: { name: `${g.noun} name is required.` } }
   const original = text(input.originalName)
   if (name !== original) {
-    const taken = check(await db().from('trunk_regions').select('name').eq('name', name).maybeSingle(), 'Checking region')
-    if (taken) return { ok: false, errors: { name: `“${name}” already exists. To combine them, delete this region and move its branches there.` } }
+    const taken = check(await db().from(g.table).select('name').eq('name', name).maybeSingle(), `Checking ${kind}`)
+    if (taken) return { ok: false, errors: { name: `“${name}” already exists. To combine them, use Delete or merge and move the branches there.` } }
   }
-  if (original) check(await db().from('trunk_regions').update({ name, notes: text(input.notes) }).eq('name', original), 'Saving region') // cascades to branches
-  else check(await db().from('trunk_regions').insert({ name, notes: text(input.notes) }), 'Adding region')
+  if (original) check(await db().from(g.table).update({ name, notes: text(input.notes) }).eq('name', original), `Saving ${kind}`)
+  else check(await db().from(g.table).insert({ name, notes: text(input.notes) }), `Adding ${kind}`)
   refresh()
   return { ok: true, name }
 }
 
-/** Deletes a region. Its branches move to `moveTo`, or are left without a region. */
-export async function deleteRegion(name, moveTo) {
+/** Deletes a region/zone. Its branches move to `moveTo` (a merge), or are left without one. */
+export async function deleteGroup(kind, name, moveTo) {
   await requireUser()
+  const g = GROUPS[kind]
+  if (!g) return { ok: false, error: 'Unknown list.' }
   const target = text(moveTo)
-  if (target === name) return { ok: false, error: 'Pick a different region to move the branches to.' }
+  if (target === name) return { ok: false, error: `Pick a different ${kind} to move the branches to.` }
   if (target) {
-    await ensureRegion(target)
-    check(await db().from('trunk_branches').update({ region: target }).eq('region', name), 'Moving branches')
+    await ensureGroup(kind, target)
+    check(await db().from('trunk_branches').update({ [kind]: target }).eq(kind, name), 'Moving branches')
   }
-  check(await db().from('trunk_regions').delete().eq('name', name), 'Deleting region')
+  check(await db().from(g.table).delete().eq('name', name), `Deleting ${kind}`)
   refresh()
   return { ok: true }
 }
 
-/** Renames a zone on every branch (or clears it). For regions, renaming onto an existing region merges them. */
+export async function saveRegion(input) { return saveGroup('region', input) }
+export async function deleteRegion(name, moveTo) { return deleteGroup('region', name, moveTo) }
+
+/** Used by the pickers: rename (an existing name merges them) or, with no new name, remove. */
 export async function renameBranchField(field, from, to) {
   await requireUser()
+  if (!GROUPS[field]) return { ok: false, error: 'Unknown field.' }
   const value = text(to)
   if (!text(from)) return { ok: false, error: 'Nothing to rename.' }
-  if (field === 'region') {
-    if (!value) return deleteRegion(from, null)
-    const exists = check(await db().from('trunk_regions').select('name').eq('name', value).maybeSingle(), 'Checking region')
-    if (exists) return deleteRegion(from, value)
-    return saveRegion({ name: value, originalName: from, notes: (check(await db().from('trunk_regions').select('notes').eq('name', from).maybeSingle(), 'Loading region') || {}).notes })
-  }
-  if (field !== 'zone') return { ok: false, error: 'Unknown field.' }
-  check(await db().from('trunk_branches').update({ zone: value }).eq('zone', from), 'Updating zone')
-  refresh()
-  return { ok: true }
+  if (!value) return deleteGroup(field, from, null)
+  const exists = check(await db().from(GROUPS[field].table).select('name').eq('name', value).maybeSingle(), `Checking ${field}`)
+  if (exists) return deleteGroup(field, from, value)
+  const cur = check(await db().from(GROUPS[field].table).select('notes').eq('name', from).maybeSingle(), `Loading ${field}`)
+  return saveGroup(field, { name: value, originalName: from, notes: cur?.notes })
 }

@@ -44,22 +44,22 @@ export function BranchPicker({ id, value, onChange, branches, deliveries = [], a
 /** Region or zone picker. Editing renames it on every branch; deleting clears it from those branches. */
 export function FieldPicker({ field, id, value, onChange, branches, invalid }) {
   const noun = field === 'zone' ? 'zone' : 'region'
-  const { regions } = useAppData()
+  const lists = useAppData()
   const options = useMemo(() => {
     const c = {}
-    if (field === 'region') for (const r of regions) c[r] = 0 // managed regions, even with no branches yet
+    for (const name of (field === 'zone' ? lists.zones : lists.regions) || []) c[name] = 0 // managed names, even with no branches yet
     for (const b of branches) if (b[field]) c[b[field]] = (c[b[field]] || 0) + 1
     return Object.entries(c).sort(([a], [b]) => a.localeCompare(b)).map(([v, n]) => ({
       value: v, meta: plural(n, 'branch', 'branches'), data: { value: v }, count: n,
     }))
-  }, [branches, field, regions])
+  }, [branches, field, lists])
 
   return (
     <Combobox
       id={id} value={value} onChange={onChange} options={options} invalid={invalid}
       placeholder={`Search or add a ${noun}`}
       addLabel={(t) => `Add new ${noun} “${t}”`}
-      editFields={[{ key: 'value', label: field === 'region' ? 'Rename (an existing name merges them)' : 'Rename zone (all its branches)' }]}
+      editFields={[{ key: 'value', label: 'Rename (an existing name merges them)' }]}
       onEdit={(o, v) => (v.value?.trim() ? renameBranchField(field, o.value, v.value) : { ok: false, error: 'Name cannot be empty.' })}
       onDelete={(o) => renameBranchField(field, o.value, null)}
       deleteText={(o) => (o.count ? `Remove “${o.value}”? ${plural(o.count, 'branch', 'branches')} will have no ${noun}.` : `Delete ${noun} “${o.value}”?`)}

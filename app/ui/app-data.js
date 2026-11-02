@@ -1,8 +1,8 @@
 'use client'
 import { createContext, useContext } from 'react'
 
-const Ctx = createContext({ regions: [] })
-export function AppData({ regions, children }) {
-  return <Ctx.Provider value={{ regions }}>{children}</Ctx.Provider>
+const Ctx = createContext({ regions: [], zones: [] })
+export function AppData({ regions, zones, children }) {
+  return <Ctx.Provider value={{ regions, zones }}>{children}</Ctx.Provider>
 }
 export const useAppData = () => useContext(Ctx)

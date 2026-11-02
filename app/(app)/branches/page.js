@@ -6,7 +6,7 @@ import { BranchesView } from './view'
 export const metadata = { title: 'Branches' }
 
 export default async function BranchesPage({ searchParams }) {
-  const { region: initialRegion } = await searchParams
+  const { region: initialRegion, zone: initialZone } = await searchParams
   const { deliveries, branches, setupError } = await loadAll()
   if (setupError) return <><PageHead title="Branches" /><SetupNotice message={setupError} /></>
   const byBranch = groupBy(deliveries, 'branch_code')
@@ -21,5 +21,5 @@ export default async function BranchesPage({ searchParams }) {
       issues: list.filter((r) => r.issues.length).length,
     }
   })
-  return <BranchesView rows={rows} initialRegion={typeof initialRegion === 'string' ? initialRegion : ''} />
+  return <BranchesView rows={rows} initialRegion={typeof initialRegion === 'string' ? initialRegion : ''} initialZone={typeof initialZone === 'string' ? initialZone : ''} />
 }

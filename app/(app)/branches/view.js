@@ -21,11 +21,11 @@ const COLS = [
   { key: 'last', label: 'Last delivery' },
 ]
 
-export function BranchesView({ rows, initialRegion = '' }) {
+export function BranchesView({ rows, initialRegion = '', initialZone = '' }) {
   const router = useRouter()
   const [q, setQ] = useState('')
-  const [region, setRegion] = useState(initialRegion)
-  const [zone, setZone] = useState('')
+  const [region, setRegion] = useState(initialRegion === '__none' ? 'No region' : initialRegion)
+  const [zone, setZone] = useState(initialZone === '__none' ? 'No zone' : initialZone)
   const [only, setOnly] = useState('')
   const [sort, setSort] = useState({ key: 'code', dir: 'asc' })
   const [editing, setEditing] = useState(null) // null | 'new' | branch row
